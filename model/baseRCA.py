@@ -91,7 +91,7 @@ class BaseRCATrainer():
         with torch.no_grad():
             for batch_data in self.rca_data_loader.data_loader['train_A']:
                 # 前向得到embedding
-                _, _, emb = self.model(batch_data, 'train_A', lambda_grl=0.0)
+                _, _, emb = self.model(batch_data, 'train_A')
                 emb_A.extend(emb)
                 y = batch_data['y'].to(self.device)
                 all_zero_mask = (y.sum(dim=1) == 0)
@@ -99,11 +99,11 @@ class BaseRCATrainer():
                 A_label.extend(torch.where(all_zero_mask, torch.tensor(0).to(self.device), y+1))
             for batch_data in self.rca_data_loader.data_loader['z-score_A']:
                 # 前向得到embedding
-                _, _, emb_a = self.model(batch_data, 'z-score_A', lambda_grl=0.0)
+                _, _, emb_a = self.model(batch_data, 'z-score_A')
                 A_normal.append(emb_a.mean(dim=0))
             for batch_data in self.rca_data_loader.data_loader['z-score_B']:
                 # 前向得到embedding
-                _, _, emb_b = self.model(batch_data, 'z-score_B', lambda_grl=0.0)
+                _, _, emb_b = self.model(batch_data, 'z-score_B')
                 B_normal.append(emb_b.mean(dim=0))
         A_label = torch.stack(A_label, dim=0)
         emb_A = torch.stack(emb_A, dim=0)
@@ -160,7 +160,7 @@ class BaseRCATrainer():
 
 
                 # --- forward A (labeled) ---
-                fault_A, class_logits_A, emb_A = self.model(batch_data_A, 'train_A', lambda_grl=0.0)
+                fault_A, class_logits_A, emb_A = self.model(batch_data_A, 'train_A')
                 # emb_A: (B, F, D)
 
                 # rearrange y into dict of ent_type -> (B*F, C)
@@ -173,32 +173,19 @@ class BaseRCATrainer():
                 fault_logits_A = torch.where(all_zero_mask, torch.tensor(0).to(self.device), 1)
                 loss_fault = criterion_fault(fault_A.squeeze(), fault_logits_A.float())
                 loss_class = criterion_dict[ent_type](class_logits_A[~all_zero_mask], y_A_dict[ent_type][~all_zero_mask]-1)
-
-                # A_fault = domain_logits_A[~all_zero_mask]
-                # A_normal = domain_logits_A[all_zero_mask]
-
-                # _, _, emb, emb_A_flat = self.model(batch_data_A_z, 'z-score_A', lambda_grl=0.0)
-                # A_normal = torch.concatenate([A_normal,emb])
-                # _, _, B_normal, emb_B_flat  = self.model(batch_data_B, 'z-score_B', lambda_grl=0.0)
-                
-                # features = torch.cat([A_normal, B_normal, A_fault], dim=0)
-                # labels = torch.cat([
-                #     torch.zeros(len(A_normal)).to(self.device),        # label 0 = normal
-                #     torch.zeros(len(B_normal)).to(self.device),        # target system normal also label 0
-                #     y_A_dict[ent_type][~all_zero_mask]                 # different faults: label 1, 2, 3...
-                # ], dim=0)
                 
                 A_fault = emb_A[~all_zero_mask]
                 A_normal = emb_A[all_zero_mask]
 
-                _, _, emb_A_flat = self.model(batch_data_A_z, 'z-score_A', lambda_grl=0.0)
+                _, _, emb_A_flat = self.model(batch_data_A_z, 'z-score_A')
                 A_normal = torch.concatenate([A_normal,emb_A_flat])
 
-                fault_B, _, emb_B_flat  = self.model(batch_data_B, 'z-score_B', lambda_grl=0.0)
-                features = torch.cat([A_normal, emb_B_flat], dim=0)
+                _, _, emb_B_flat  = self.model(batch_data_B, 'z-score_B')
+                features = torch.cat([A_normal, emb_B_flat, A_fault], dim=0)
                 labels = torch.cat([
                     torch.zeros(len(A_normal)).to(self.device),        # label 0 = normal
-                    torch.zeros(len(emb_B_flat)).to(self.device)        # target system normal also label 0
+                    torch.zeros(len(emb_B_flat)).to(self.device),        # target system normal also label 0
+                    y_A_dict[ent_type][~all_zero_mask]                 # different faults: label 1, 2, 3...
                 ], dim=0)
 
 
@@ -257,7 +244,7 @@ class BaseRCATrainer():
                     y_true_list.append(y_true)
 
                     # 模型前向
-                    fault_logits, out_logits, emb = self.model(batch_data, dataset_key, lambda_grl=0.0)
+                    fault_logits, out_logits, emb = self.model(batch_data, dataset_key)
                     features = np.concatenate((features,emb.cpu().numpy()),0)
                     gate = torch.sigmoid(fault_logits)   # (N,)
                     mask = (gate > 0.6).cpu()
