@@ -19,9 +19,9 @@ class FaultClassifier(nn.Module):
         self.encoder = Encoder(param_dict, meta_data)
         self.decoder = ImprovedDecoder(in_dim=param_dict['eff_out_dim'], num_classes=num_classes)
 
-    def forward(self, batch_data, train_key, lambda_grl=1.0):
+    def forward(self, batch_data, train_key):
         out = self.encoder(batch_data, train_key)
-        fault_logits, class_logits = self.decoder(out, lambda_grl)
+        fault_logits, class_logits = self.decoder(out)
         return fault_logits, class_logits, out
     
 class SupConLoss(nn.Module):
