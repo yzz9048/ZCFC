@@ -1,4 +1,4 @@
-from model.baseRCA import BaseRCATrainer
+from model.base import BaseTrainer
 from shared_util.evaluation_metrics import *
 import argparse
 from shared_util.file_handler import FileHandler
@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     params = vars(parser.parse_args())
 
-    rca_data_trainer = BaseRCATrainer(params)
+    rca_data_trainer = BaseTrainer(params)
 
     if params['train']:
         rca_data_trainer.train()
