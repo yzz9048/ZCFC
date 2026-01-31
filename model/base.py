@@ -90,7 +90,6 @@ class BaseRCATrainer():
         emb_A, A_normal, B_normal = [], [], []          
         with torch.no_grad():
             for batch_data in self.rca_data_loader.data_loader['train_A']:
-                # 前向得到embedding
                 _, _, emb = self.model(batch_data, 'train_A')
                 emb_A.extend(emb)
                 y = batch_data['y'].to(self.device)
@@ -98,11 +97,9 @@ class BaseRCATrainer():
                 y = torch.argmax(y, dim=1)
                 A_label.extend(torch.where(all_zero_mask, torch.tensor(0).to(self.device), y+1))
             for batch_data in self.rca_data_loader.data_loader['z-score_A']:
-                # 前向得到embedding
                 _, _, emb_a = self.model(batch_data, 'z-score_A')
                 A_normal.append(emb_a.mean(dim=0))
             for batch_data in self.rca_data_loader.data_loader['z-score_B']:
-                # 前向得到embedding
                 _, _, emb_b = self.model(batch_data, 'z-score_B')
                 B_normal.append(emb_b.mean(dim=0))
         A_label = torch.stack(A_label, dim=0)
@@ -115,7 +112,6 @@ class BaseRCATrainer():
         # distances =  torch.cdist(F.normalize(emb_A,dim=1), normal_centroid.unsqueeze(dim=0))
         # distances = distances.squeeze(1)
 
-        # 每类故障的prototype
         for c in range(self.param_dict["ec_fault_types"]):
             pos_mask = (A_label == c)
             prototypes.append((F.normalize(emb_A,dim=1)[pos_mask]-normal_centroid_A).mean(dim=0))
@@ -126,7 +122,7 @@ class BaseRCATrainer():
             return None, None
         
         return prototypes, normal_centroid_A, normal_centroid_B
-    # -------------------- 训练主循环（整合：分类 + prototype pull + normal-only MMD） --------------------
+
     def train(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.param_dict['lr'],
                                      weight_decay=self.param_dict['weight_decay'])
@@ -168,7 +164,7 @@ class BaseRCATrainer():
                 y = batch_data_A['y'].to(self.device)
                 all_zero_mask = (y.sum(dim=1) == 0)
                 y = torch.argmax(y, dim=1)
-                y_A_dict[ent_type] = torch.where(all_zero_mask, torch.tensor(0).to(self.device), y+1) # 类别索引,0表示正常
+                y_A_dict[ent_type] = torch.where(all_zero_mask, torch.tensor(0).to(self.device), y+1) 
 
                 fault_logits_A = torch.where(all_zero_mask, torch.tensor(0).to(self.device), 1)
                 loss_fault = criterion_fault(fault_A.squeeze(), fault_logits_A.float())
@@ -191,8 +187,6 @@ class BaseRCATrainer():
 
                 loss_contrast = criterion(features, labels)
 
-                
-                # ---------------- classification loss (use your per-ent-type BCE) ----------------
                 loss_cls = loss_fault + 0.8*loss_class
 
                 total_loss = loss_cls + 0.7*loss_contrast
@@ -209,21 +203,21 @@ class BaseRCATrainer():
             if (epoch+1) % 50 == 0:
                 torch.save(self.model.state_dict(), self.param_dict["model_path"]+f"{epoch+1}.pt")
         prototypes, normal_centroid_A, normal_centroid_B = self.compute_prototypes()
-        # 保存 prototypes 到磁盘（可选）
+
         if prototypes is not None:
             torch.save({'prototypes': prototypes, 
                         'normal_centroid_A': normal_centroid_A,
                         "normal_centroid_B": normal_centroid_B}, self.param_dict["prototype_path"])
             self.logger.info("Saved prototypes to " + self.param_dict["prototype_path"])
 
-    # -------------------- 评估（保持和你原来接口类似） --------------------
+
     def evaluate_rca_d3(self):
         self.model.eval()
         self.model.load_state_dict(torch.load(self.param_dict["model_path"], map_location=self.device))
         pt = torch.load(self.param_dict["prototype_path"], map_location=self.device)
         proto, normal_centroid_A, normal_centroid_B = pt["prototypes"], pt["normal_centroid_A"], pt["normal_centroid_B"]
         #proto, normal_centroid_A, normal_centroid_B = self.compute_prototypes()
-        # -------------------- 定义评估函数 --------------------
+
         def evaluate(dataset_key, proto, normal_centroid):
             y_pred_list1, y_pred_list2 = [], []
             y_true_list = []
@@ -232,10 +226,8 @@ class BaseRCATrainer():
             inference_time = []
             with torch.no_grad():
                 for batch_id, batch_data in enumerate(self.rca_data_loader.data_loader[dataset_key]):
-                    # batch 设为1
                     start = datetime.now().timestamp()
 
-                    # 收集真实标签（假定 batch_data['y'] 形状为 (B, F, C)）
                     y = np.array(batch_data['y'])
                     all_zero_mask = (y.sum(axis=1) == 0)
                     y = np.argmax(y, axis=1)
@@ -243,7 +235,6 @@ class BaseRCATrainer():
                     zero_mask_list.append(all_zero_mask)
                     y_true_list.append(y_true)
 
-                    # 模型前向
                     fault_logits, out_logits, emb = self.model(batch_data, dataset_key)
                     features = np.concatenate((features,emb.cpu().numpy()),0)
                     gate = torch.sigmoid(fault_logits)   # (N,)
@@ -273,11 +264,9 @@ class BaseRCATrainer():
             visualize_tsne(features.reshape(features.shape[0],-1), y_true, dataset_key)
             return y_pred1, y_pred2, y_true, zero_mask
 
-        # -------------------- 在A上评估 --------------------
         # y_pred1, y_pred2, y_true, zero_mask = evaluate('test_A', proto, normal_centroid_A)
         # self.output_evaluation_rca_d3_result(y_pred1, y_pred2, y_true, zero_mask, 'test_A')
 
-        # -------------------- 在B上评估（可选prototype） --------------------
         y_pred1, y_pred2, y_true, zero_mask = evaluate('test_B', proto, normal_centroid_B)
         self.output_evaluation_rca_d3_result(y_pred1, y_pred2, y_true, zero_mask, 'test_B')
 
@@ -290,12 +279,12 @@ class BaseRCATrainer():
         fault_pred = y_pred1
         precision = precision_score(fault_true, fault_pred)  # Precision = TP / (TP + FP)
         recall = recall_score(fault_true, fault_pred)      # Recall = TP / (TP + FN)
-        f1 = f1_score(fault_true, fault_pred) # 需要拿第一个窗口做预测
+        f1 = f1_score(fault_true, fault_pred) 
         print(f"pre:{precision:.6f},rec:{recall:.6f},f1:{f1:.6f}")
 
         num_classes = self.param_dict.get("num_classes", 3)
         self.logger.info(f"---------- {key_name} ----------")
-        print("\n详细分类报告:")
+        print("\n Detailed reports:")
         print(
             classification_report(
                 y_true[~zero_mask]-1, y_pred2,
