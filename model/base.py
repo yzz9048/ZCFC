@@ -68,7 +68,7 @@ class SupConLoss(nn.Module):
 
         return loss
         
-class BaseRCATrainer():
+class BaseTrainer():
     def __init__(self, param_dict):
         self.param_dict = param_dict
         self.device = torch.device(f"cuda:{param_dict['gpu']}" if torch.cuda.is_available() else "cpu")
