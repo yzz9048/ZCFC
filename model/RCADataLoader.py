@@ -10,7 +10,7 @@ class RCADataset(Dataset):
         self.data = data
 
     def __len__(self):
-        return len(self.data['y'])
+        return len(self.data['x_trace'])
 
     def __getitem__(self, idx):
         item = dict()
@@ -56,11 +56,26 @@ class RCADataLoader():
                 
                 # Process modal types
                 for modal_type in ['metric', 'trace']:
-                    data[dataset_type][train_key][f'x_{modal_type}'] = self.l2_normalize(temp['data'][f'x_{modal_type}_{dataset_type}'].transpose((0, 2, 1)),axis=2)
-                
+                    data[dataset_type][train_key][f'x_{modal_type}'] = self.l2_normalize(temp['data'][f'x_{modal_type}_{dataset_type}'].astype(float).transpose((0, 2, 1)),axis=2)
+                    #data[dataset_type][train_key][f'x_{modal_type}'] = temp['data'][f'x_{modal_type}_{dataset_type}'].transpose(0, 2, 1)
                 # Load other data components
-                data[dataset_type][train_key]['x_log'] = temp['data'][f'x_log_{dataset_type}']
-                data[dataset_type][train_key]['ent_edge_index'] = temp['data'][f'ent_edge_index_{dataset_type}']
+                if dataset_type == 'z-score':
+                    z_score_log_key = f'x_log_{dataset_type}'
+                    if z_score_log_key in temp['data']:
+                        # SN/TT 正常数据有 log，直接加载
+                        data[dataset_type][train_key]['x_log'] = temp['data'][z_score_log_key]
+                    # AIops 正常数据没有 log：不加载 x_log，Encoder 走 has_log=False 纯零路径
+                else:
+                    data[dataset_type][train_key]['x_log'] = temp['data'][f'x_log_{dataset_type}']
+                # edge_index: z-score 复用 train 的拓扑（每个样本拓扑相同）
+                edge_key = f'ent_edge_index_{dataset_type}'
+                if edge_key in temp['data']:
+                    data[dataset_type][train_key]['ent_edge_index'] = temp['data'][edge_key]
+                else:
+                    n_samples = len(temp['data'][f'x_metric_{dataset_type}'])
+                    first_edge = np.array(temp['data']['ent_edge_index_train'][0])
+                    data[dataset_type][train_key]['ent_edge_index'] = np.tile(
+                        first_edge[np.newaxis], (n_samples, 1, 1))
                 data[dataset_type][train_key]['y'] = temp['data'][f'y_{dataset_type}']
                 
                 # Create DataLoader

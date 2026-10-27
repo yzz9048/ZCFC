@@ -145,24 +145,32 @@ class Encoder(nn.Module):
         #                      num_layers=3,
         #                      dropout=0.1)
         
-    def forward(self, batch_data, train_key):
+    def forward(self, batch_data, train_key, has_log):
         for modal_type in ['metric','trace']: 
             batch_data[f'x_{modal_type}'] = batch_data[f'x_{modal_type}'].to(self.device)
             batch_data[f'x_{modal_type}'] = self.positional_embedding_dict[train_key[-1]][modal_type](batch_data[f'x_{modal_type}']).contiguous()
             batch_data[f'x_{modal_type}'] = self.different_modal_mapping_dict[modal_type](batch_data[f'x_{modal_type}'])
             batch_data[f'x_{modal_type}'] = self.modal_transformer_encoder_layer_dict[modal_type](batch_data[f'x_{modal_type}'])
-        batch_size = batch_data['y'].shape[0]
-        batch_data['x_log'] = batch_data['x_log'].to(self.device)
-        log_data = self.ent_feature_align_dict_log(batch_data['x_log'])
-        log_data = log_data.permute(0, 2, 3, 1)
-        BB, FF, DD, WW = log_data.shape
-        log_data = log_data.reshape(batch_size, -1, log_data.shape[-1])
-        log_data = self.positional_embedding_log[train_key[-1]](log_data)
-        log_data = self.ent_transformer_encoder_layer_log(log_data)
-        log_data = log_data.reshape(BB, FF, DD, WW)
-        log_data = self.pool(log_data.permute(0, 3, 1, 2))
-        log_data = self.linear_log(log_data)
-        # 需要整合metric trace log特征，映射到一个维度
+        batch_size = batch_data['x_trace'].shape[0]
+        if has_log:
+            batch_data['x_log'] = batch_data['x_log'].to(self.device)
+            # 检测全零 log 样本（正常样本无 log 数据），其输出应与 has_log=False 路径一致
+            zero_log_mask = batch_data['x_log'].reshape(batch_size, -1).abs().sum(dim=1) == 0
+            log_data = self.ent_feature_align_dict_log(batch_data['x_log'])
+            log_data = log_data.permute(0, 2, 3, 1)
+            BB, FF, DD, WW = log_data.shape
+            log_data = log_data.reshape(batch_size, -1, log_data.shape[-1])
+            log_data = self.positional_embedding_log[train_key[-1]](log_data)
+            log_data = self.ent_transformer_encoder_layer_log(log_data)
+            log_data = log_data.reshape(BB, FF, DD, WW)
+            log_data = self.pool(log_data.permute(0, 3, 1, 2))
+            log_data = self.linear_log(log_data)
+            if zero_log_mask.any():
+                log_data[zero_log_mask] = 0
+        else:
+            num_ents = len(self.meta_dataT[train_key[-1]]['ent_names'])
+            log_data = torch.zeros(batch_size, num_ents, self.linear_log.out_features,
+                                   device=self.device)
         
         x_ent = []
         for ent_type in self.meta_dataT[train_key[-1]]['ent_types']: 
@@ -185,7 +193,7 @@ class Encoder(nn.Module):
         x_ent = torch.stack(x_ent, dim=1)
         
         # # noGNN
-        # x_ent = self.linear2(x_ent)
+        #       
         # x = nn.AdaptiveAvgPool1d(1)(x_ent.transpose(1,2))
         # return x.transpose(1,2).squeeze()
 
@@ -196,4 +204,4 @@ class Encoder(nn.Module):
         x = ent_batch_graph.x['re']
         x = self.GraphSage(x, ent_batch_graph.edge_index)
 
-        return torch.mean(x, dim=1) #(B,F, D) --> (B, D)
+        return torch.mean(x, dim=1) #(B,F, D) --> (B, D) 
