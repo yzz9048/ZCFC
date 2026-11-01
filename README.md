@@ -57,7 +57,7 @@ python main.py `
 | `--model_path` | `./model/snTott/200.pt` | Filename prefix for saving during training; full filename during testing |
 | `--prototype_path` | `./model/snTott/proto/` | Path to the prototype file during training; the default is a directory and should be overridden with a filename; not read during testing |
 | `--window_size` / `--llm_embedding` | `10` / `1024` | Time-window length and log embedding dimension; must match the data |
-| `--gpu` | `3` | Use the specified GPU index when CUDA is available; otherwise, use the CPU |
+| `--gpu` | `0` | Use the specified GPU index when CUDA is available; otherwise, use the CPU |
 | `--epochs` / `--batch_size` | `200` / `64` | Number of training epochs and the batch size shared across data splits |
 | `--lr` / `--weight_decay` | `0.0001` / `0.001` | Adam learning rate and weight decay |
 | `--orl_te_heads` / `--orl_te_layers` / `--orl_te_in_channels` | `4` / `2` / `128` | Transformer settings for the metric and trace modalities |
