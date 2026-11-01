@@ -28,8 +28,8 @@ Run the following example in PowerShell from the project root directory. First, 
 ```powershell
 New-Item -ItemType Directory -Force -Path .\checkpoints | Out-Null
 python main.py --train `
-  --dataset_path_SN "C:\data\sn.pkl" `
-  --dataset_path_AI "C:\data\ai.pkl" `
+  --dataset_path_SN "../sn.pkl" `
+  --dataset_path_TT "../tt.pkl" `
   --model_path ".\checkpoints\model_" `
   --prototype_path ".\checkpoints\prototypes.pt" `
   --epochs 200 --batch_size 64 --gpu 0
@@ -41,8 +41,8 @@ Omit `--train` to enter testing mode. In this case, `--model_path` must be the *
 
 ```powershell
 python main.py `
-  --dataset_path_SN "C:\data\sn.pkl" `
-  --dataset_path_AI "C:\data\ai.pkl" `
+  --dataset_path_SN "../sn.pkl" `
+  --dataset_path_TT "../tt.pkl" `
   --model_path ".\checkpoints\model_200.pt" `
   --batch_size 64 --gpu 0
 ```

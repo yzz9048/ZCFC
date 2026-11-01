@@ -20,7 +20,7 @@ class SAGEEncoder(nn.Module):
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.layers[-1](x, edge_index)
-        # e = gnn.global_max_pool(x, edge_index) # 图级池化获得节点特征
+        # e = gnn.global_max_pool(x, edge_index) 
         x = F.relu(x)
         x = x.view(batch_size, -1, x.shape[-1]).contiguous()
         return x

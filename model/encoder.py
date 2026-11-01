@@ -154,7 +154,6 @@ class Encoder(nn.Module):
         batch_size = batch_data['x_trace'].shape[0]
         if has_log:
             batch_data['x_log'] = batch_data['x_log'].to(self.device)
-            # 检测全零 log 样本（正常样本无 log 数据），其输出应与 has_log=False 路径一致
             zero_log_mask = batch_data['x_log'].reshape(batch_size, -1).abs().sum(dim=1) == 0
             log_data = self.ent_feature_align_dict_log(batch_data['x_log'])
             log_data = log_data.permute(0, 2, 3, 1)
@@ -174,11 +173,10 @@ class Encoder(nn.Module):
         
         x_ent = []
         for ent_type in self.meta_dataT[train_key[-1]]['ent_types']: 
-            # 单独处理log
             # log_data = self.pool(batch_data['x_log'])
             # log_data = self.ent_feature_align_dict[ent_type]['log'](log_data)
             
-            for ent_index in range(self.meta_dataT[train_key[-1]]['ent_type_index'][ent_type][0], self.meta_dataT[train_key[-1]]['ent_type_index'][ent_type][1]): # 遍历每种实体内所有元素
+            for ent_index in range(self.meta_dataT[train_key[-1]]['ent_type_index'][ent_type][0], self.meta_dataT[train_key[-1]]['ent_type_index'][ent_type][1]): 
                 x = []
                 for modal_type in ['metric','trace']:
                     feature_index_pair = self.meta_dataT[train_key[-1]]['ent_features'][modal_type][ent_index][1]
@@ -188,7 +186,7 @@ class Encoder(nn.Module):
                     modal_data = self.ent_feature_align_dict[ent_type][modal_type](modal_data)
                     x.append(modal_data)
                 x.append(log_data[:, ent_index,:])
-                x = torch.cat(x, dim=1) #将不同模态的数据在特征维度上拼接 
+                x = torch.cat(x, dim=1) 
                 x_ent.append(x)
         x_ent = torch.stack(x_ent, dim=1)
         
@@ -197,7 +195,7 @@ class Encoder(nn.Module):
         # x = nn.AdaptiveAvgPool1d(1)(x_ent.transpose(1,2))
         # return x.transpose(1,2).squeeze()
 
-        x_ent = self.linear(x_ent) # 直接将拼接的多模态特征映射到向量空间
+        x_ent = self.linear(x_ent) 
         batch_data['x_ent'] = x_ent
 
         ent_batch_graph = EntBatchGraph(batch_data, self.meta_dataT[train_key[-1]]).to(self.device)
