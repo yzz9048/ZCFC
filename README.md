@@ -1,14 +1,5 @@
 # ZCFC
 
-## Entry Point and Overall Workflow
-
-```
-main.py: Set the random seed, parse arguments, and select the device
-  └─ BaseRCATrainer: Load SN(A) / TT(B) data and initialize the model
-       ├─ --train: Labeled source-domain samples + normal samples from both domains → Train → Save weights and prototypes
-       └─ Default: Load weights → Recompute prototypes using training and normal data → Test on A and B → Report metrics
-```
-
 Key files:
 
 | File | Purpose |
